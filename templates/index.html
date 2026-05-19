@@ -4,150 +4,200 @@
 <head>
   <title>Fake News Detector</title>
   <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='bootstrap.css') }}">
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='animate.css') }}">
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='font.css') }}">
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='li-scroller.css') }}">
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='theme.css') }}">
-  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    textarea[name="news"] {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: Arial, sans-serif;
+      color: #222;
+      resize: vertical;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color .2s;
+    }
 
+    textarea[name="news"]:focus {
+      border-color: #3b82f6;
+    }
+
+    button[type="submit"] {
+      margin-top: 14px;
+      padding: 12px 28px;
+      background: #2563eb;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button[type="submit"]:hover {
+      background: #1d4ed8;
+    }
+
+    .result-card {
+      margin-top: 28px;
+      padding: 22px 24px;
+      border-radius: 14px;
+      border-left: 6px solid;
+      animation: fadeIn .4s ease;
+    }
+
+    .result-card.real {
+      background: #f0fdf4;
+      border-color: #16a34a;
+    }
+
+    .result-card.fake {
+      background: #fff1f2;
+      border-color: #dc2626;
+    }
+
+    .result-label {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 0 0 6px;
+    }
+
+    .result-card.real .result-label {
+      color: #15803d;
+    }
+
+    .result-card.fake .result-label {
+      color: #b91c1c;
+    }
+
+    .result-confidence {
+      font-size: 13px;
+      color: #555;
+      margin: 0 0 10px;
+    }
+
+    .bar-bg {
+      background: #e2e8f0;
+      border-radius: 999px;
+      height: 12px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width .5s ease;
+    }
+
+    .bar-fill.real {
+      background: #16a34a;
+    }
+
+    .bar-fill.fake {
+      background: #dc2626;
+    }
+
+    .error-msg {
+      margin-top: 16px;
+      color: #b91c1c;
+      font-size: 14px;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+  </style>
 </head>
 
-<body>
+<body style="background:#f4f7fb; font-family:Arial,sans-serif;">
+  <div style="max-width:900px; margin:auto; padding:40px 20px;">
 
-  <body style="background:#f4f7fb; font-family:Arial, sans-serif;">
-
-    <div class="container" style="max-width:900px; margin:auto; padding:40px 20px;">
-
-      <!-- HEADER -->
-      <div style="text-align:center; margin-bottom:40px;">
-        <h1 style="font-size:48px; color:#1e3a8a; font-weight:bold;">
-          Fake News Detector
-        </h1>
-
-        <p style="font-size:18px; color:#555; margin-top:10px;">
-          Detect whether a news article is real or fake using Machine Learning
-        </p>
-      </div>
-
-      <!-- MAIN CARD -->
-      <div style="
-      background:white;
-      padding:35px;
-      border-radius:18px;
-      box-shadow:0 4px 20px rgba(0,0,0,0.08);
-    ">
-
-        <h3 style="margin-bottom:20px; color:#222;">
-          Paste News Content
-        </h3>
-
-        <form action="{{ url_for('predict') }}" method="POST">
-
-          <textarea name="news" class="form-control" rows="12" placeholder="Paste news article text here..." style="
-            resize:none;
-            border-radius:12px;
-            padding:18px;
-            font-size:16px;
-            border:1px solid #ccc;
-          "></textarea>
-
-          <div style="margin-top:25px;">
-            <button type="submit" class="btn btn-primary btn-lg" style="
-              background:#2563eb;
-              border:none;
-              padding:12px 30px;
-              border-radius:10px;
-              font-size:18px;
-              font-weight:bold;
-            ">
-              Check News
-            </button>
-          </div>
-
-        </form>
-
-        {% if prediction %}
-        {% if 'FAKE' in prediction %}
-        {% set color = '#ef4444' %}
-        {% set bg = '#fee2e2' %}
-        {% else %}
-        {% set color = '#22c55e' %}
-        {% set bg = '#dcfce7' %}
-        {% endif %}
-
-        <div
-          style="margin-top:30px; padding:20px; border-radius:12px; border-left: 6px solid { color }; background-color: { bg };">
-
-          <h3 style="margin:0; font-weight:bold; color: {color};">
-            {{ prediction }}
-          </h3>
-
-        </div>
-
-        {% endif %}
-
-      </div>
-
-      <!-- FEATURES -->
-      <div style="
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-      gap:20px;
-      margin-top:40px;
-    ">
-
-        <div style="
-        background:white;
-        padding:25px;
-        border-radius:16px;
-        box-shadow:0 4px 15px rgba(0,0,0,0.05);
-      ">
-          <h4>AI Detection</h4>
-          <p style="color:#666;">
-            Uses Machine Learning to classify news as real or fake.
-          </p>
-        </div>
-
-        <div style="
-        background:white;
-        padding:25px;
-        border-radius:16px;
-        box-shadow:0 4px 15px rgba(0,0,0,0.05);
-      ">
-          <h4>Fast Analysis</h4>
-          <p style="color:#666;">
-            Instantly analyzes text content in seconds.
-          </p>
-        </div>
-
-        <div style="
-        background:white;
-        padding:25px;
-        border-radius:16px;
-        box-shadow:0 4px 15px rgba(0,0,0,0.05);
-      ">
-          <h4>Easy to Use</h4>
-          <p style="color:#666;">
-            Just paste news text and get prediction results.
-          </p>
-        </div>
-
-      </div>
-
-      <!-- FOOTER -->
-      <div style="
-      text-align:center;
-      margin-top:50px;
-      color:#777;
-      font-size:14px;
-    ">
-        © 2026 Fake News Detector | Built with Flask & Machine Learning
-      </div>
-
+    <!-- HEADER -->
+    <div style="text-align:center; margin-bottom:40px;">
+      <h1 style="font-size:48px; color:#1e3a8a; font-weight:bold;">Fake News Detector</h1>
+      <p style="font-size:18px; color:#555; margin-top:10px;">
+        Detect whether a news article is real or fake using Machine Learning
+      </p>
     </div>
-  </body>
+
+    <!-- MAIN CARD -->
+    <div style="background:white; padding:35px; border-radius:18px; box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+      <h3 style="margin-bottom:20px; color:#222;">Paste News Content</h3>
+
+      <!-- textarea — pakai nilai dari news_text -->
+      <form action="/predict" method="POST">
+        <textarea name="news" rows="10"
+          placeholder="Paste news article text here...">{{ news_text if news_text else '' }}</textarea>
+        <button type="submit">Check News</button>
+      </form>
+
+      <!-- result -->
+      {% if pred_label %}
+      <div class="result-card {{ 'fake' if pred_is_fake else 'real' }}">
+        <p class="result-label">
+          {{ '🔴 FAKE NEWS — Berita Palsu' if pred_is_fake else '🟢 REAL NEWS — Berita Asli' }}
+        </p>
+        <p class="result-confidence">
+          Tingkat keyakinan model: <strong>{{ pred_confidence }}%</strong>
+        </p>
+        <div class="bar-bg">
+          <div class="bar-fill {{ 'fake' if pred_is_fake else 'real' }}" style="width:{{ pred_confidence }}%;">
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if error %}
+      <p class="error-msg">⚠ {{ error }}</p>
+      {% endif %}
+
+      {% if prediction %}
+      <div class="result-card {{ 'fake' if prediction.is_fake else 'real' }}">
+        <p class="result-label">
+          {{ '🔴 FAKE NEWS — Berita Palsu' if prediction.is_fake else '🟢 REAL NEWS — Berita Asli' }}
+        </p>
+        <p class="result-confidence">
+          Tingkat keyakinan model: <strong>{{ prediction.confidence }}%</strong>
+        </p>
+        <div class="bar-bg">
+          <div class="bar-fill {{ 'fake' if prediction.is_fake else 'real' }}"
+            style="width:{{ prediction.confidence }}%;">
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- FEATURES -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:20px; margin-top:40px;">
+      <div style="background:white; padding:25px; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+        <h4>AI Detection</h4>
+        <p style="color:#666;">Uses Machine Learning to classify news as real or fake.</p>
+      </div>
+      <div style="background:white; padding:25px; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+        <h4>Fast Analysis</h4>
+        <p style="color:#666;">Instantly analyzes text content in seconds.</p>
+      </div>
+      <div style="background:white; padding:25px; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+        <h4>Easy to Use</h4>
+        <p style="color:#666;">Just paste news text and get prediction results.</p>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top:50px; color:#777; font-size:14px;">
+      © 2026 Fake News Detector | Built with Flask &amp; Machine Learning
+    </div>
+  </div>
+</body>
 
 </html>
