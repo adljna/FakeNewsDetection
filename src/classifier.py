@@ -4,7 +4,9 @@ Created on Sun Nov  5 12:58:52 2017
 
 @author: NishitP
 """
-
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import src.DataPrep as DataPrep
 import src.FeatureSelection as FeatureSelection
 import numpy as np
@@ -18,6 +20,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import  LogisticRegression
 from sklearn.linear_model import SGDClassifier
 from sklearn import svm
+from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import KFold
 from sklearn.metrics import confusion_matrix, f1_score, classification_report
@@ -69,7 +72,7 @@ np.mean(predicted_svm == DataPrep.test_news['Label'])
 #using SVM Stochastic Gradient Descent on hinge loss
 sgd_pipeline = Pipeline([
         ('svm2CV',FeatureSelection.countV),
-        ('svm2_clf',SGDClassifier(loss='hinge', penalty='l2', alpha=1e-3, n_iter=5))
+        ('svm2_clf', SGDClassifier(loss='hinge', penalty='l2', alpha=1e-3, max_iter=5))
         ])
 
 sgd_pipeline.fit(DataPrep.train_news['Statement'],DataPrep.train_news['Label'])
@@ -192,7 +195,7 @@ np.mean(predicted_svm_ngram == DataPrep.test_news['Label'])
 #sgd classifier
 sgd_pipeline_ngram = Pipeline([
          ('sgd_tfidf',FeatureSelection.tfidf_ngram),
-         ('sgd_clf',SGDClassifier(loss='hinge', penalty='l2', alpha=1e-3, n_iter=5))
+         ('sgd_clf', SGDClassifier(loss='hinge', penalty='l2', alpha=1e-3, max_iter=5))
          ])
 
 sgd_pipeline_ngram.fit(DataPrep.train_news['Statement'],DataPrep.train_news['Label'])
@@ -336,9 +339,23 @@ forest model with n-gram has better accuracty than with the parameter estimated.
 has almost similar performance as n-gram model so logistic regression will be out choice of model for prediction.
 """
 
-#saving best model to the disk
-model_file = 'final_model.sav'
-pickle.dump(logR_pipeline_ngram,open(model_file,'wb'))
+# ====================================================================
+# MODIFIKASI: Menyimpan Model Terbaik Langsung ke Folder Model Flask
+# ====================================================================
+import os
+
+# Tentukan path folder model (disesuaikan agar langsung masuk ke folder model aplikasi Flask)
+# Kodingan ini otomatis menyimpan file ke dalam folder: model/pipeline_v1.pkl
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '../model')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+model_file_path = os.path.join(OUTPUT_DIR, 'pipeline_v1.pkl')
+
+# logR_pipeline_ngram adalah objek Pipeline asli (TF-IDF + Logistic Regression) bawaan script ini
+pickle.dump(logR_pipeline_ngram, open(model_file_path, 'wb'))
+
+print(f"✓ MODEL PIPELINE TERBAIK BERHASIL DICETAK DI: {model_file_path}")
+# ====================================================================
 
 
 #Plotting learing curve

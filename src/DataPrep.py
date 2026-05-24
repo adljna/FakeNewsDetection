@@ -13,14 +13,14 @@ from nltk.stem import SnowballStemmer
 from nltk.stem.porter import PorterStemmer
 from nltk.tokenize import word_tokenize
 import seaborn as sb
+import os
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 #before reading the files, setup the working directory to point to project repo
 #reading data files 
-
-
-test_filename = '../data/test.csv'
-train_filename = '../data/train.csv'
-valid_filename = '../data/valid.csv'
+train_filename = os.path.join(BASE_DIR, 'data', 'train.csv')
+test_filename = os.path.join(BASE_DIR, 'data', 'test.csv')
+valid_filename = os.path.join(BASE_DIR, 'data', 'valid.csv')
 
 train_news = pd.read_csv(train_filename)
 test_news = pd.read_csv(test_filename)

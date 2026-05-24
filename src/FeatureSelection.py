@@ -8,7 +8,9 @@ Note: before we can train an algorithm to classify fake news labels, we need to 
 of unstructured data into some uniform set of attributes that an algorithm can understand. For fake news detection, it could be 
 word counts (bag of words). 
 """
-
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import src.DataPrep as DataPrep
 import pandas as pd
 import numpy as np
@@ -100,10 +102,10 @@ def untag(tagged_sentence):
 
 
 
-#Using Word2Vec 
-with open("glove.6B.50d.txt", "rb") as lines:
-    w2v = {line.split()[0]: np.array(map(float, line.split()[1:]))
-           for line in lines}
+# #Using Word2Vec 
+# with open("glove.6B.50d.txt", "rb") as lines:
+#     w2v = {line.split()[0]: np.array(map(float, line.split()[1:]))
+#            for line in lines}
 
 
 
@@ -129,32 +131,3 @@ class MeanEmbeddingVectorizer(object):
         ])
 
 
-"""
-class TfidfEmbeddingVectorizer(object):
-    def __init__(self, word2vec):
-        self.word2vec = word2vec
-        self.word2weight = None
-        self.dim = len(word2vec.itervalues().next())
-
-    def fit(self, X, y):
-        tfidf = TfidfVectorizer(analyzer=lambda x: x)
-        tfidf.fit(X)
-        # if a word was never seen - it must be at least as infrequent
-        # as any of the known words - so the default idf is the max of 
-        # known idf's
-        max_idf = max(tfidf.idf_)
-        self.word2weight = defaultdict(
-            lambda: max_idf,
-            [(w, tfidf.idf_[i]) for w, i in tfidf.vocabulary_.items()])
-
-        return self
-
-    def transform(self, X):
-        return np.array([
-                np.mean([self.word2vec[w] * self.word2weight[w]
-                         for w in words if w in self.word2vec] or
-                        [np.zeros(self.dim)], axis=0)
-                for words in X
-            ])
-
-"""
