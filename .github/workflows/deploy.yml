@@ -1,0 +1,103 @@
+name: MLOps Model Pipeline
+
+on:
+  push:
+    branches:
+      - development
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
+  MODEL_BUCKET: ${{ secrets.MODEL_BUCKET }}
+  DATA_URI: ${{ secrets.DATA_URI }}
+  TEXT_COL: ${{ secrets.TEXT_COL }}
+  LABEL_COL: ${{ secrets.LABEL_COL }}
+  F1_THRESHOLD: ${{ secrets.F1_THRESHOLD }}
+
+jobs:
+  train-and-upload-model:
+    name: Train and Upload Model
+    runs-on: ubuntu-latest
+
+    outputs:
+      model_uri: ${{ steps.model-info.outputs.model_uri }}
+      model_version: ${{ steps.model-info.outputs.model_version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install training dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-train.txt
+
+      - name: Decide model prefix
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "master" ]; then
+            echo "MODEL_PREFIX=${{ secrets.MODEL_PREFIX_PROD }}" >> $GITHUB_ENV
+            echo "MODEL_STAGE=production" >> $GITHUB_ENV
+          else
+            echo "MODEL_PREFIX=${{ secrets.MODEL_PREFIX_DEV }}" >> $GITHUB_ENV
+            echo "MODEL_STAGE=candidate" >> $GITHUB_ENV
+          fi
+
+      - name: Train, evaluate, and upload model
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          MODEL_VERSION: ${{ github.ref_name }}-${{ github.run_number }}-${{ github.sha }}
+        run: |
+          python scripts/train_and_upload.py
+
+      - name: Read model info
+        id: model-info
+        run: |
+          echo "model_uri=$(cat model_uri.txt)" >> $GITHUB_OUTPUT
+          echo "model_version=$(cat model_version.txt)" >> $GITHUB_OUTPUT
+
+      - name: Show uploaded model URI
+        run: |
+          echo "Model URI: ${{ steps.model-info.outputs.model_uri }}"
+          echo "Model Version: ${{ steps.model-info.outputs.model_version }}"
+
+  promote-to-cloud-run:
+    name: Promote Model to Cloud Run
+    runs-on: ubuntu-latest
+    needs: train-and-upload-model
+
+    if: github.ref_name == 'master'
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Update Cloud Run model environment variables
+        run: |
+          gcloud run services update "${{ secrets.CLOUD_RUN_SERVICE }}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --region="${{ secrets.GCP_REGION }}" \
+            --update-env-vars="MODEL_GCS_URI=${{ needs.train-and-upload-model.outputs.model_uri }},MODEL_VERSION=${{ needs.train-and-upload-model.outputs.model_version }}"
