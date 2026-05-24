@@ -17,15 +17,14 @@ def preprocess(text):
 def fake_news_det(news):
     clean = preprocess(news)
     prediction = pipeline.predict([clean])[0]
-    prob = pipeline.predict_proba([clean])[0]  # [prob_fake, prob_real]
 
     if prediction == 0:
         label = "FAKE NEWS (Berita Palsu)"
-        confidence = round(prob[0] * 100, 1)   # probabilitas FAKE
+        confidence = "-"   # probabilitas FAKE
         is_fake = True
     else:
         label = "REAL NEWS (Berita Asli)"
-        confidence = round(prob[1] * 100, 1)   # probabilitas REAL
+        confidence = "-"   # probabilitas REAL
         is_fake = False
 
     return {
