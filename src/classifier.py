@@ -5,8 +5,8 @@ Created on Sun Nov  5 12:58:52 2017
 @author: NishitP
 """
 
-import DataPrep
-import FeatureSelection
+import src.DataPrep as DataPrep
+import src.FeatureSelection as FeatureSelection
 import numpy as np
 import pandas as pd
 import pickle

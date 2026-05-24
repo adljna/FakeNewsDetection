@@ -598,11 +598,11 @@ progress {
 .container-lg,
 .container-md,
 .container-sm {
-  width: ;
-  padding-right: ;
-  padding-left: ;
-  margin-right: ;
-  margin: 100px 100px 100px 100px;
+  width: 100%;
+  padding-right: 15px;
+  padding-left: 15px;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 @media (min-width: 576px) {
@@ -2405,8 +2405,7 @@ textarea.form-control-lg {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
-  -webkit-print-color-adjust: exact;
-  color-adjust: exact;
+  
 }
 .form-check-input[type=checkbox] {
   border-radius: 0.25em;
