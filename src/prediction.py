@@ -1,28 +1,50 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Dec  4 17:45:40 2017
-
-@author: NishitP
-"""
-
 import pickle
+import os
+import re
 
-#doc_new = ['obama is running for president in 2016']
+MODEL_PATH = os.path.join(
+    os.path.dirname(__file__),
+    '..',
+    'model',
+    'pipeline_v1.pkl'
+)
 
-var = input("Please enter the news text you want to verify: ")
-print("You entered: " + str(var))
-
-
-#function to run for prediction
-def detecting_fake_news(var):    
-#retrieving the best model for prediction call
-    load_model = pickle.load(open('final_model.sav', 'rb'))
-    prediction = load_model.predict([var])
-    prob = load_model.predict_proba([var])
-
-    return (print("The given statement is ",prediction[0]),
-        print("The truth probability score is ",prob[0][1]))
+# load model sekali saat aplikasi start
+with open(MODEL_PATH, 'rb') as file:
+    pipeline = pickle.load(file)
 
 
-if __name__ == '__main__':
-    detecting_fake_news(var)
+def preprocess(text):
+    text = re.sub(r'[^a-zA-Z\s]', '', str(text))
+    return text.lower().strip()
+
+
+def predict_news(text):
+
+    clean = preprocess(text)
+
+    prediction = pipeline.predict([clean])[0]
+
+    confidence = None
+
+    # cek apakah model support probability
+    if hasattr(pipeline, "predict_proba"):
+
+        probs = pipeline.predict_proba([clean])[0]
+
+        confidence = round(float(max(probs)) * 100, 2)
+
+    # mapping hasil prediksi
+    if prediction == 0:
+        label = "FAKE NEWS"
+        is_fake = True
+    else:
+        label = "REAL NEWS"
+        is_fake = False
+
+    return {
+        "prediction": label,
+        "is_fake": is_fake,
+        "confidence": confidence,
+        "model_version": "v1"
+    }

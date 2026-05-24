@@ -5,26 +5,33 @@ import os
 
 app = Flask(__name__, template_folder='./templates', static_folder='./static')
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'pipeline.pkl')
+# Membaca file pipeline utuh yang baru saja kita buat dari script classifier
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'pipeline_v1.pkl')
 pipeline = pickle.load(open(MODEL_PATH, 'rb'))
-
 
 def preprocess(text):
     text = re.sub(r'[^a-zA-Z\s]', '', str(text))
     return text.lower()
 
-
 def fake_news_det(news):
     clean = preprocess(news)
+    
+    # Memprediksi kelas dan probabilitas langsung menggunakan gerbong Pipeline
     prediction = pipeline.predict([clean])[0]
+    probabilities = pipeline.predict_proba([clean])[0]
+    
+    # Pemetaan probabilitas berdasarkan index scikit-learn (0 = False/Fake, 1 = True/Real)
+    prob_fake = probabilities[0] * 100
+    prob_real = probabilities[1] * 100
 
+    # Memastikan sinkronisasi output dengan logika integer label dataset
     if prediction == 0:
         label = "FAKE NEWS (Berita Palsu)"
-        confidence = "-"   # probabilitas FAKE
+        confidence = f"{prob_fake:.2f}"   # Mengambil persentase tingkat kepalsuan
         is_fake = True
     else:
         label = "REAL NEWS (Berita Asli)"
-        confidence = "-"   # probabilitas REAL
+        confidence = f"{prob_real:.2f}"   # Mengambil persentase tingkat keaslian
         is_fake = False
 
     return {
@@ -33,11 +40,9 @@ def fake_news_det(news):
         "is_fake": is_fake,
     }
 
-
 @app.route('/')
 def home():
     return render_template('index.html')
-
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -53,7 +58,6 @@ def predict():
                            pred_label=result['label'],
                            pred_confidence=result['confidence'],
                            pred_is_fake=result['is_fake'])
-
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -1,0 +1,5 @@
+scikit-learn==1.7.2
+numpy
+pandas
+joblib
+google-cloud-storage
