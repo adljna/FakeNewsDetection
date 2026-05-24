@@ -80,6 +80,9 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}"
+          IMAGE_URI="$(echo "$IMAGE_URI" | tr '[:upper:]' '[:lower:]')"
+          
+          echo "Building image URI: ${IMAGE_URI}"
 
           docker build \
             -t "${IMAGE_URI}:${GITHUB_SHA}" \
