@@ -1,8 +1,9 @@
-name: MLOps Model Pipeline
+name: MLOps API CI/CD Pipeline
 
 on:
   push:
     branches:
+      - feature/gcp-deployment-pipeline
       - development
       - master
   workflow_dispatch:
@@ -14,20 +15,40 @@ env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCP_REGION: ${{ secrets.GCP_REGION }}
   CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
-  MODEL_BUCKET: ${{ secrets.MODEL_BUCKET }}
-  DATA_URI: ${{ secrets.DATA_URI }}
-  TEXT_COL: ${{ secrets.TEXT_COL }}
-  LABEL_COL: ${{ secrets.LABEL_COL }}
-  F1_THRESHOLD: ${{ secrets.F1_THRESHOLD }}
+  ARTIFACT_REGISTRY_REPO: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
+  IMAGE_NAME: fakenews-api
+  MODEL_PATH: /app/model/pipeline_v1.pkl
 
 jobs:
-  train-and-upload-model:
-    name: Train and Upload Model
+  test-api:
+    name: Test API
     runs-on: ubuntu-latest
 
-    outputs:
-      model_uri: ${{ steps.model-info.outputs.model_uri }}
-      model_version: ${{ steps.model-info.outputs.model_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run API tests
+        run: |
+          pytest tests/ -v
+
+  build-and-deploy:
+    name: Build and Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: test-api
+
+    if: github.ref_name == 'development' || github.ref_name == 'master' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository
@@ -41,63 +62,34 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install training dependencies
+      - name: Configure Docker for Artifact Registry
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-train.txt
+          gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
-      - name: Decide model prefix
+      - name: Build Docker image
         run: |
-          if [ "${GITHUB_REF_NAME}" = "master" ]; then
-            echo "MODEL_PREFIX=${{ secrets.MODEL_PREFIX_PROD }}" >> $GITHUB_ENV
-            echo "MODEL_STAGE=production" >> $GITHUB_ENV
-          else
-            echo "MODEL_PREFIX=${{ secrets.MODEL_PREFIX_DEV }}" >> $GITHUB_ENV
-            echo "MODEL_STAGE=candidate" >> $GITHUB_ENV
-          fi
+          IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}"
 
-      - name: Train, evaluate, and upload model
-        env:
-          COMMIT_SHA: ${{ github.sha }}
-          MODEL_VERSION: ${{ github.ref_name }}-${{ github.run_number }}-${{ github.sha }}
+          docker build \
+            -t "${IMAGE_URI}:${GITHUB_SHA}" \
+            -t "${IMAGE_URI}:latest" \
+            .
+
+      - name: Push Docker image
         run: |
-          python scripts/train_and_upload.py
+          IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}"
 
-      - name: Read model info
-        id: model-info
+          docker push "${IMAGE_URI}:${GITHUB_SHA}"
+          docker push "${IMAGE_URI}:latest"
+
+      - name: Deploy to Cloud Run
         run: |
-          echo "model_uri=$(cat model_uri.txt)" >> $GITHUB_OUTPUT
-          echo "model_version=$(cat model_version.txt)" >> $GITHUB_OUTPUT
+          IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${IMAGE_NAME}"
 
-      - name: Show uploaded model URI
-        run: |
-          echo "Model URI: ${{ steps.model-info.outputs.model_uri }}"
-          echo "Model Version: ${{ steps.model-info.outputs.model_version }}"
-
-  promote-to-cloud-run:
-    name: Promote Model to Cloud Run
-    runs-on: ubuntu-latest
-    needs: train-and-upload-model
-
-    if: github.ref_name == 'master'
-
-    steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Update Cloud Run model environment variables
-        run: |
-          gcloud run services update "${{ secrets.CLOUD_RUN_SERVICE }}" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --region="${{ secrets.GCP_REGION }}" \
-            --update-env-vars="MODEL_GCS_URI=${{ needs.train-and-upload-model.outputs.model_uri }},MODEL_VERSION=${{ needs.train-and-upload-model.outputs.model_version }}"
+          gcloud run deploy "${CLOUD_RUN_SERVICE}" \
+            --project="${GCP_PROJECT_ID}" \
+            --region="${GCP_REGION}" \
+            --image="${IMAGE_URI}:${GITHUB_SHA}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars="MODEL_PATH=${MODEL_PATH}"
