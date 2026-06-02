@@ -2,20 +2,15 @@ import pickle
 import os
 import re
 
-MODEL_PATH = os.path.join(
-    os.path.dirname(__file__),
-    '..',
-    'model',
-    'pipeline_v1.pkl'
-)
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "model", "pipeline_v1.pkl")
 
 # load model sekali saat aplikasi start
-with open(MODEL_PATH, 'rb') as file:
+with open(MODEL_PATH, "rb") as file:
     pipeline = pickle.load(file)
 
 
 def preprocess(text):
-    text = re.sub(r'[^a-zA-Z\s]', '', str(text))
+    text = re.sub(r"[^a-zA-Z\s]", "", str(text))
     return text.lower().strip()
 
 
@@ -46,5 +41,5 @@ def predict_news(text):
         "prediction": label,
         "is_fake": is_fake,
         "confidence": confidence,
-        "model_version": "v1"
+        "model_version": "v1",
     }
