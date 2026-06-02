@@ -1,25 +1,21 @@
-body
-{
-	background-image: url(https://cdn.hipwallpaper.com/i/55/28/yTersM.jpg);
+body {
+  background-image: url(https://cdn.hipwallpaper.com/i/55/28/yTersM.jpg);
 }
-.fnd
-{
-	text-align: center;
-	color: #d62750;
-	font-size: 2.0em;
-	margin-top: 0px;
-	
+.fnd {
+  text-align: center;
+  color: #d62750;
+  font-size: 2em;
+  margin-top: 0px;
 }
-.how
-{
-	margin-left: 250px; 
-	padding-top: ;
-	font-size: 30px;
-	color: #ccbf87;
+.how {
+  margin-left: 250px;
+  padding-top:;
+  font-size: 30px;
+  color: #ccbf87;
 }
 
-.name{
-	align-content: center;
+.name {
+  align-content: center;
   width: 50%;
   height: 150px;
   margin-left: 250px;
@@ -32,50 +28,26 @@ body
   resize: none;
 }
 
-.btn-success
-{
-	margin-left: 250px;
-	background: ;
-    height: 40px;
-    width: 100px;
-    font-size: 1.5em;
-    border-radius: 10px;
-     border-color: #0a58ca;
-    
+.btn-success {
+  margin-left: 250px;
+  background:;
+  height: 40px;
+  width: 100px;
+  font-size: 1.5em;
+  border-radius: 10px;
+  border-color: #0a58ca;
 }
-.btn-primary
-{
-	margin-left: 250px;
-	background: red;
-    height: 40px;
-    width: 100px;
-    font-size: 1.5em;
-    border-radius: 10px;
-    
+.btn-primary {
+  margin-left: 250px;
+  background: red;
+  height: 40px;
+  width: 100px;
+  font-size: 1.5em;
+  border-radius: 10px;
 }
 
-#prediction
-{
-	margin-left: 250px;
-	font-size: 1.5em;
-	color: #ccffff;
+#prediction {
+  margin-left: 250px;
+  font-size: 1.5em;
+  color: #ccffff;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

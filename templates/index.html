@@ -122,9 +122,7 @@
     <div style="max-width: 900px; margin: auto; padding: 40px 20px">
       <!-- HEADER -->
       <div style="text-align: center; margin-bottom: 40px">
-        <h1 style="font-size: 48px; color: #1e3a8a; font-weight: bold">
-          Fake News Detector
-        </h1>
+        <h1 style="font-size: 48px; color: #1e3a8a; font-weight: bold">Fake News Detector</h1>
         <p style="font-size: 18px; color: #555; margin-top: 10px">
           Detect whether a news article is real or fake using Machine Learning
         </p>
@@ -143,11 +141,7 @@
 
         <!-- textarea — pakai nilai dari news_text -->
         <form action="/predict" method="POST">
-          <textarea
-            name="news"
-            rows="10"
-            placeholder="Paste news article text here..."
-          >
+          <textarea name="news" rows="10" placeholder="Paste news article text here...">
 {{ news_text if news_text else '' }}</textarea
           >
           <button type="submit">Check News</button>
@@ -157,8 +151,7 @@
         {% if pred_label %}
         <div class="result-card {{ 'fake' if pred_is_fake else 'real' }}">
           <p class="result-label">
-            {{ '🔴 FAKE NEWS — Berita Palsu' if pred_is_fake else '🟢 REAL NEWS
-            — Berita Asli' }}
+            {{ '🔴 FAKE NEWS — Berita Palsu' if pred_is_fake else '🟢 REAL NEWS — Berita Asli' }}
           </p>
           <p class="result-confidence">
             Tingkat keyakinan model: <strong>{{ pred_confidence }}%</strong>
@@ -175,8 +168,8 @@
         {% endif %} {% if prediction %}
         <div class="result-card {{ 'fake' if prediction.is_fake else 'real' }}">
           <p class="result-label">
-            {{ '🔴 FAKE NEWS — Berita Palsu' if prediction.is_fake else '🟢 REAL
-            NEWS — Berita Asli' }}
+            {{ '🔴 FAKE NEWS — Berita Palsu' if prediction.is_fake else '🟢 REAL NEWS — Berita Asli'
+            }}
           </p>
           <p class="result-confidence">
             Tingkat keyakinan model:
@@ -210,9 +203,7 @@
           "
         >
           <h4>AI Detection</h4>
-          <p style="color: #666">
-            Uses Machine Learning to classify news as real or fake.
-          </p>
+          <p style="color: #666">Uses Machine Learning to classify news as real or fake.</p>
         </div>
         <div
           style="
@@ -234,20 +225,11 @@
           "
         >
           <h4>Easy to Use</h4>
-          <p style="color: #666">
-            Just paste news text and get prediction results.
-          </p>
+          <p style="color: #666">Just paste news text and get prediction results.</p>
         </div>
       </div>
 
-      <div
-        style="
-          text-align: center;
-          margin-top: 50px;
-          color: #777;
-          font-size: 14px;
-        "
-      >
+      <div style="text-align: center; margin-top: 50px; color: #777; font-size: 14px">
         © 2026 Fake News Detector | Built with Flask &amp; Machine Learning
       </div>
     </div>
