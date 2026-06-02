@@ -1,6 +1,9 @@
-from flask import Flask, render_template, request
-import re
-import pickle
+"""Compatibility entry point for running the Flask app locally.
+
+The main MLOps service is implemented in src/api.py. This file is kept so the
+old command `python app.py` still works.
+"""
+
 import os
 
 app = Flask(__name__, template_folder="./templates", static_folder="./static")
