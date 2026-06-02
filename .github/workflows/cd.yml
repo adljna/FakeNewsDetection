@@ -3,7 +3,7 @@ name: Production Deployment
 on:
   push:
     branches:
-      - master
+      - development
 
   workflow_dispatch:
 
@@ -18,7 +18,7 @@ env:
   DATA_URI: ${{ secrets.DATA_URI }}
   TEXT_COL: ${{ secrets.TEXT_COL }}
   LABEL_COL: ${{ secrets.LABEL_COL }}
-  MIN_F1_SCORE: ${{ secrets.F1_THRESHOLD || '0.60' }}
+  MIN_F1_SCORE: ${{ secrets.F1_THRESHOLD }}
   CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
   AR_REPOSITORY: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
   IMAGE_NAME: ${{ secrets.IMAGE_NAME }}

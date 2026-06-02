@@ -23,7 +23,7 @@ env:
   DATA_URI: ${{ secrets.DATA_URI }}
   TEXT_COL: ${{ secrets.TEXT_COL }}
   LABEL_COL: ${{ secrets.LABEL_COL }}
-  MIN_F1_SCORE: ${{ secrets.MIN_F1_SCORE || '0.60' }}
+  MIN_F1_SCORE: ${{ secrets.F1_THRESHOLD }}
 
 jobs:
   unit-test:
@@ -140,7 +140,7 @@ jobs:
           import sys
 
           metrics_path = "reports/metrics.json"
-          min_f1 = float(os.getenv("MIN_F1_SCORE", "0.60"))
+          min_f1 = float(os.getenv("MIN_F1_SCORE"))
 
           with open(metrics_path, "r", encoding="utf-8") as f:
               metrics = json.load(f)
