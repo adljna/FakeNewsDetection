@@ -20,6 +20,7 @@ from sklearn.metrics import (
 )
 
 
+# Mengatur input-input wajib dari terminal saat menjalankan script.
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Train fake news detection model using TF-IDF and Logistic Regression."
@@ -76,12 +77,12 @@ def parse_args():
 
     return parser.parse_args()
 
-
+ # Membuat folder baru otomatis jika folder tujuan penyimpanan belum ada.
 def prepare_output_dirs(*paths):
     for path in paths:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
 
-
+# Menyaring data yang rusak/kosong agar tidak merusak proses latihan.
 def validate_dataset(df, text_col, label_col):
     if text_col not in df.columns:
         raise ValueError(
