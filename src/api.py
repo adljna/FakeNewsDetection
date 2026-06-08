@@ -33,6 +33,30 @@ def preprocess(text):
     text = re.sub(r"[^a-zA-Z\s]", "", str(text))
     return text.lower().strip()
 
+def validate_news_text(text):
+    text = str(text).strip()
+
+    if not text:
+        return "Masukkan teks berita terlebih dahulu."
+
+    if len(text) < 20:
+        return "Teks berita terlalu pendek. Minimal 20 karakter."
+
+    if len(text.split()) < 5:
+        return "Teks berita harus mengandung minimal 5 kata."
+
+    if not re.search(r"[a-zA-Z]", text):
+        return "Teks berita harus mengandung huruf."
+
+    cleaned = text.replace(" ", "").lower()
+
+    if len(set(cleaned)) <= 2:
+        return "Input tidak valid. Masukkan teks berita yang bermakna."
+
+    if len(text) > 10000:
+        return "Teks berita terlalu panjang. Maksimal 10000 karakter."
+
+    return None
 
 def parse_gcs_uri(gcs_uri):
     parsed = urlparse(gcs_uri)
@@ -223,11 +247,13 @@ def health():
 def predict_web():
     message = request.form.get("news", "").strip()
 
-    if not message:
+    validation_error = validate_news_text(message)
+
+    if validation_error:
         return render_template(
             "index.html",
-            error="Masukkan teks berita terlebih dahulu.",
-            news_text="",
+            error=validation_error,
+            news_text=message,
         )
 
     result = predict_news(message)
@@ -254,10 +280,12 @@ def predict_api():
 
     text = payload.get("text", "")
 
-    if not str(text).strip():
+    validation_error = validate_news_text(text)
+
+    if validation_error:
         return jsonify(
             {
-                "error": "Field 'text' is required and cannot be empty."
+                "error": validation_error
             }
         ), 400
 
