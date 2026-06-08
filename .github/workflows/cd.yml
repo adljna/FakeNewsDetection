@@ -62,6 +62,18 @@ jobs:
         run: |
           docker push "$IMAGE_URI"
 
+      - name: Promote best candidate model to production
+        run: |
+          echo "Promoting best candidate model to production..."
+
+          gcloud storage cp \
+            "gs://${MODEL_BUCKET}/models/candidate/best/pipeline.pkl" \
+            "gs://${MODEL_BUCKET}/models/production/pipeline.pkl"
+
+          gcloud storage cp \
+            "gs://${MODEL_BUCKET}/reports/candidate/best/metrics.json" \
+            "gs://${MODEL_BUCKET}/reports/production/metrics.json"
+
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy "$CLOUD_RUN_SERVICE" \
@@ -69,7 +81,7 @@ jobs:
             --region "$GCP_REGION" \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars "MODEL_GCS_URI=gs://${MODEL_BUCKET}/models/candidate/best/pipeline.pkl,MODEL_VERSION=${GITHUB_SHA}"
+            --set-env-vars "MODEL_GCS_URI=gs://${MODEL_BUCKET}/models/production/pipeline.pkl,MODEL_VERSION=${GITHUB_SHA}"
 
       - name: Run Cloud Run smoke test
         continue-on-error: true
