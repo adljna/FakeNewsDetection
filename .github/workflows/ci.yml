@@ -157,15 +157,51 @@ jobs:
           print("Model passed the metric gate.")
           PY
 
-      - name: Upload candidate model to Cloud Storage
+      - name: Compare with current best model
+        id: compare
         run: |
-          echo "Uploading candidate model to Cloud Storage..."
+          python - <<'PY'
+          import json
+          import os
 
-          gcloud storage cp model/pipeline.pkl "gs://${MODEL_BUCKET}/models/candidate/${GITHUB_SHA}/pipeline.pkl"
-          gcloud storage cp reports/metrics.json "gs://${MODEL_BUCKET}/reports/candidate/${GITHUB_SHA}/metrics.json"
+          current_f1 = 0.0
 
-          gcloud storage cp model/pipeline.pkl "gs://${MODEL_BUCKET}/models/candidate/latest/pipeline.pkl"
-          gcloud storage cp reports/metrics.json "gs://${MODEL_BUCKET}/reports/candidate/latest/metrics.json"
+          result = os.system(
+              f'gcloud storage cp gs://{os.environ["MODEL_BUCKET"]}/reports/candidate/best/metrics.json current_metrics.json'
+          )
+
+          if result == 0:
+              with open("current_metrics.json") as f:
+                  current_f1 = json.load(f).get("f1_weighted", 0)
+          else:
+              print("No previous best model found.")
+
+          with open("reports/metrics.json") as f:
+              new_f1 = json.load(f).get("f1_weighted", 0)
+
+          print(f"Current best F1: {current_f1}")
+          print(f"New model F1: {new_f1}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"is_best={'true' if new_f1 > current_f1 else 'false'}\n")
+          PY
+
+      - name: Upload versioned model
+        run: |
+          gcloud storage cp model/pipeline.pkl \
+            "gs://${MODEL_BUCKET}/models/candidate/${GITHUB_SHA}/pipeline.pkl"
+
+          gcloud storage cp reports/metrics.json \
+            "gs://${MODEL_BUCKET}/reports/candidate/${GITHUB_SHA}/metrics.json"
+
+      - name: Update best model
+        if: steps.compare.outputs.is_best == 'true'
+        run: |
+          gcloud storage cp model/pipeline.pkl \
+            "gs://${MODEL_BUCKET}/models/candidate/best/pipeline.pkl"
+
+          gcloud storage cp reports/metrics.json \
+            "gs://${MODEL_BUCKET}/reports/candidate/best/metrics.json"
 
       - name: Upload training reports as GitHub artifact
         uses: actions/upload-artifact@v4
