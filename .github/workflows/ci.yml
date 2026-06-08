@@ -157,6 +157,7 @@ jobs:
           print("Model passed the metric gate.")
           PY
 
+      # add compare step to check if the new model is better than the current best model in GCS
       - name: Compare with current best model
         id: compare
         run: |
