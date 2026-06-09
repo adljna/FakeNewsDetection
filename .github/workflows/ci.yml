@@ -4,11 +4,32 @@ on:
   push:
     branches:
       - development
+      - master
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.jpeg"
+      - "**/*.gif"
+      - "**/*.svg"
 
   pull_request:
     branches:
       - development
       - master
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.jpeg"
+      - "**/*.gif"
+      - "**/*.svg"
 
   workflow_dispatch:
 
@@ -17,18 +38,24 @@ permissions:
   id-token: write
 
 env:
-  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCP_REGION: ${{ secrets.GCP_REGION }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PYTHON_VERSION: "3.11"
+
   MODEL_BUCKET: ${{ secrets.MODEL_BUCKET }}
   DATA_URI: ${{ secrets.DATA_URI }}
   TEXT_COL: ${{ secrets.TEXT_COL }}
   LABEL_COL: ${{ secrets.LABEL_COL }}
-  MIN_F1_SCORE: ${{ secrets.F1_THRESHOLD }}
+  MIN_F1_SCORE: 0.60
+
+concurrency:
+  group: ci-development-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  unit-test:
-    name: Run API Unit Tests
+  quality-check:
+    name: Run Code Quality Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -37,7 +64,43 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install quality tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install black flake8
+
+      - name: Run Black format check
+        run: |
+          black --check src tests
+
+      - name: Run Flake8 lint check
+        run: |
+          flake8 src tests
+
+  unit-test:
+    name: Run API Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Show Python version
+        run: |
+          python --version
+          pip --version
 
       - name: Install dependencies
         run: |
@@ -46,12 +109,12 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest tests/ -v
+          python -m pytest tests/ -v --tb=short
 
   security-check:
     name: Run Dependency Security Check
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -60,7 +123,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: requirements.txt
 
       - name: Install pip-audit
         run: |
@@ -70,20 +135,27 @@ jobs:
       - name: Run dependency audit
         run: |
           mkdir -p reports
-          pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
+          pip-audit -r requirements.txt -f json -o reports/pip_audit.json
 
       - name: Upload security audit report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ci-security-audit-report
           path: reports/pip_audit.json
+          retention-days: 7
 
   train-candidate-model:
     name: Train and Upload Candidate Model
     runs-on: ubuntu-latest
-    needs:
-      - unit-test
+    timeout-minutes: 30
 
+    needs:
+      - quality-check
+      - unit-test
+      - security-check
+
+    # Training dan upload model hanya dilakukan saat push/manual run,
     if: github.event_name != 'pull_request'
 
     steps:
@@ -98,14 +170,31 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Set active GCP project
-        run: |
-          gcloud config set project "$GCP_PROJECT_ID"
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Show tool versions
+        run: |
+          python --version
+          pip --version
+          gcloud --version
+
+      - name: Validate required environment variables
+        run: |
+          required_vars=("MODEL_BUCKET" "DATA_URI" "TEXT_COL" "LABEL_COL" "MIN_F1_SCORE")
+
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "Missing required environment variable: $var"
+              exit 1
+            fi
+          done
+
+          echo "All required environment variables are set."
 
       - name: Install Python dependencies
         run: |
@@ -120,8 +209,9 @@ jobs:
 
       - name: Download training dataset from Cloud Storage
         run: |
-          echo "Downloading dataset from: $DATA_URI"
+          echo "Downloading dataset from Cloud Storage..."
           gcloud storage cp "$DATA_URI" data/train.csv
+          echo "Dataset downloaded to data/train.csv"
 
       - name: Train candidate model
         run: |
@@ -147,65 +237,136 @@ jobs:
 
           f1 = float(metrics.get("f1_weighted", 0))
 
-          print(f"F1 score: {f1}")
-          print(f"Minimum required F1 score: {min_f1}")
+          print(f"F1 score: {f1:.4f}")
+          print(f"Minimum required F1 score: {min_f1:.4f}")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Model Metric Gate\n\n")
+              summary.write(f"- F1 score: `{f1:.4f}`\n")
+              summary.write(f"- Minimum required F1 score: `{min_f1:.4f}`\n")
 
           if f1 < min_f1:
               print("Model failed the metric gate.")
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+                  summary.write("- Status: Failed\n")
               sys.exit(1)
 
           print("Model passed the metric gate.")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("- Status: Passed\n")
           PY
 
-      # add compare step to check if the new model is better than the current best model in GCS
-      - name: Compare with current best model
+      - name: Compare with current best candidate model
         id: compare
         run: |
           python - <<'PY'
           import json
           import os
+          import subprocess
+
+          bucket = os.environ["MODEL_BUCKET"]
+          current_metrics_path = "current_metrics.json"
+          best_metrics_uri = f"gs://{bucket}/reports/candidate/best/metrics.json"
 
           current_f1 = 0.0
+          previous_best_found = False
 
-          result = os.system(
-              f'gcloud storage cp gs://{os.environ["MODEL_BUCKET"]}/reports/candidate/best/metrics.json current_metrics.json'
+          result = subprocess.run(
+              ["gcloud", "storage", "cp", best_metrics_uri, current_metrics_path],
+              capture_output=True,
+              text=True,
           )
 
-          if result == 0:
-              with open("current_metrics.json") as f:
-                  current_f1 = json.load(f).get("f1_weighted", 0)
+          if result.returncode == 0:
+              previous_best_found = True
+              with open(current_metrics_path, "r", encoding="utf-8") as f:
+                  current_f1 = float(json.load(f).get("f1_weighted", 0))
           else:
-              print("No previous best model found.")
+              print("No previous best candidate model found.")
+              print("This model can become the first best candidate if it passed the metric gate.")
 
-          with open("reports/metrics.json") as f:
-              new_f1 = json.load(f).get("f1_weighted", 0)
+          with open("reports/metrics.json", "r", encoding="utf-8") as f:
+              new_f1 = float(json.load(f).get("f1_weighted", 0))
 
-          print(f"Current best F1: {current_f1}")
-          print(f"New model F1: {new_f1}")
+          is_best = new_f1 > current_f1
 
-          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              out.write(f"is_best={'true' if new_f1 > current_f1 else 'false'}\n")
+          print(f"Previous best found: {previous_best_found}")
+          print(f"Current best F1: {current_f1:.4f}")
+          print(f"New model F1: {new_f1:.4f}")
+
+          if is_best:
+              print("New model is better. It will be promoted to candidate/best.")
+          else:
+              print("New model is not better. Current best candidate will be kept.")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"is_best={'true' if is_best else 'false'}\n")
+              out.write(f"current_f1={current_f1:.4f}\n")
+              out.write(f"new_f1={new_f1:.4f}\n")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("\n## Candidate Model Comparison\n\n")
+              summary.write(f"- Previous best found: `{previous_best_found}`\n")
+              summary.write(f"- Current best F1: `{current_f1:.4f}`\n")
+              summary.write(f"- New model F1: `{new_f1:.4f}`\n")
+              summary.write(f"- Promoted to candidate/best: `{'true' if is_best else 'false'}`\n")
           PY
 
-      - name: Upload versioned model
+      - name: Upload versioned candidate model
         run: |
+          echo "Uploading versioned candidate model..."
           gcloud storage cp model/pipeline.pkl \
             "gs://${MODEL_BUCKET}/models/candidate/${GITHUB_SHA}/pipeline.pkl"
 
           gcloud storage cp reports/metrics.json \
             "gs://${MODEL_BUCKET}/reports/candidate/${GITHUB_SHA}/metrics.json"
 
-      - name: Update best model
+          echo "Versioned candidate model uploaded using commit SHA: ${GITHUB_SHA}"
+
+      - name: Update best candidate model
         if: steps.compare.outputs.is_best == 'true'
         run: |
+          echo "Updating candidate/best model..."
           gcloud storage cp model/pipeline.pkl \
             "gs://${MODEL_BUCKET}/models/candidate/best/pipeline.pkl"
 
           gcloud storage cp reports/metrics.json \
             "gs://${MODEL_BUCKET}/reports/candidate/best/metrics.json"
 
+          echo "candidate/best has been updated."
+
+      - name: Keep existing best candidate model
+        if: steps.compare.outputs.is_best == 'false'
+        run: |
+          echo "New model is not better than the current best candidate."
+          echo "candidate/best is not updated."
+
       - name: Upload training reports as GitHub artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ci-training-reports
           path: reports/
+          retention-days: 7
+          
+  ci-summary:
+      name: Generate CI Summary
+      runs-on: ubuntu-latest
+      needs:
+        - unit-test
+        - security-check
+        - train-candidate-model
+      if: always()
+
+      steps:
+        - name: Write CI summary
+          run: |
+            echo "## CI Result" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Unit test job: \`${{ needs.unit-test.result }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Security check job: \`${{ needs.security-check.result }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Train candidate model job: \`${{ needs.train-candidate-model.result }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This CI validates API tests, dependency security check, candidate model training, F1 metric gate, and model artifact upload to Cloud Storage." >> $GITHUB_STEP_SUMMARY
