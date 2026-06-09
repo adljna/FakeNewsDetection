@@ -77,6 +77,7 @@ jobs:
         run: |
           black --check src tests
 
+      # flake hanya memberikan warning 
       - name: Run Flake8 lint check
         continue-on-error: true
         run: |
