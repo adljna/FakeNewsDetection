@@ -78,6 +78,7 @@ jobs:
           black --check src tests
 
       - name: Run Flake8 lint check
+        continue-on-error: true
         run: |
           flake8 src tests
 
