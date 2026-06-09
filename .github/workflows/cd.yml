@@ -1,4 +1,4 @@
-name: Production Deployment
+name: CD - Production Deployment
 
 on:
   push:
@@ -12,126 +12,50 @@ permissions:
   id-token: write
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCP_REGION: ${{ secrets.GCP_REGION }}
   MODEL_BUCKET: ${{ secrets.MODEL_BUCKET }}
-  DATA_URI: ${{ secrets.DATA_URI }}
-  TEXT_COL: ${{ secrets.TEXT_COL }}
-  LABEL_COL: ${{ secrets.LABEL_COL }}
-  MIN_F1_SCORE: ${{ secrets.F1_THRESHOLD }}
   CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
   AR_REPOSITORY: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
   IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
 
+concurrency:
+  group: production-deployment
+  cancel-in-progress: true
+
 jobs:
-  train-production-model:
-    name: Train and Upload Production Model
-    runs-on: ubuntu-latest
-
-    outputs:
-      model-version: ${{ steps.model_metadata.outputs.model_version }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-            credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Set active GCP project
-        run: |
-          gcloud config set project "$GCP_PROJECT_ID"
-
-      - name: Set model metadata
-        id: model_metadata
-        run: |
-          echo "model_version=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Prepare directories
-        run: |
-          mkdir -p data
-          mkdir -p model
-          mkdir -p reports
-
-      - name: Download training dataset from Cloud Storage
-        run: |
-          echo "Downloading dataset from: $DATA_URI"
-          gcloud storage cp "$DATA_URI" data/train.csv
-
-      - name: Train production model
-        run: |
-          python src/train.py \
-            --data data/train.csv \
-            --model-out model/pipeline.pkl \
-            --metrics-out reports/metrics.json \
-            --text-col "$TEXT_COL" \
-            --label-col "$LABEL_COL"
-
-      - name: Validate model metric gate
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          metrics_path = "reports/metrics.json"
-          min_f1 = float(os.getenv("MIN_F1_SCORE", "0.60"))
-
-          with open(metrics_path, "r", encoding="utf-8") as f:
-              metrics = json.load(f)
-
-          f1 = float(metrics.get("f1_weighted", 0))
-
-          print(f"F1 score: {f1}")
-          print(f"Minimum required F1 score: {min_f1}")
-
-          if f1 < min_f1:
-              print("Model failed the metric gate.")
-              sys.exit(1)
-
-          print("Model passed the metric gate.")
-          PY
-
-      - name: Upload production model to Cloud Storage
-        run: |
-          echo "Uploading production model to Cloud Storage..."
-
-          gcloud storage cp model/pipeline.pkl "gs://${MODEL_BUCKET}/models/production/${GITHUB_SHA}/pipeline.pkl"
-          gcloud storage cp reports/metrics.json "gs://${MODEL_BUCKET}/reports/production/${GITHUB_SHA}/metrics.json"
-
-          gcloud storage cp model/pipeline.pkl "gs://${MODEL_BUCKET}/models/production/latest/pipeline.pkl"
-          gcloud storage cp reports/metrics.json "gs://${MODEL_BUCKET}/reports/production/latest/metrics.json"
-
-      - name: Upload production training reports as GitHub artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cd-production-training-reports
-          path: reports/
-
   deploy-production:
     name: Build Docker and Deploy to Cloud Run
     runs-on: ubuntu-latest
-    needs:
-      - train-production-model
+    timeout-minutes: 30
+
+    if: github.ref_name == 'master'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Validate required environment variables
+        run: |
+          required_vars=(
+            "GCP_PROJECT_ID"
+            "GCP_REGION"
+            "MODEL_BUCKET"
+            "CLOUD_RUN_SERVICE"
+            "AR_REPOSITORY"
+            "IMAGE_NAME"
+          )
+
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "Missing required environment variable: $var"
+              exit 1
+            fi
+          done
+
+          echo "All required environment variables are set."
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -141,51 +65,189 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Set active GCP project
-        run: |
-          gcloud config set project "$GCP_PROJECT_ID"
-
       - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
       - name: Define Docker image URI
         run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+
           IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          IMAGE_URI_LATEST="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/${IMAGE_NAME}:production-latest"
+
+          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
           echo "IMAGE_URI=${IMAGE_URI}" >> "$GITHUB_ENV"
+          echo "IMAGE_URI_LATEST=${IMAGE_URI_LATEST}" >> "$GITHUB_ENV"
+
           echo "Docker image URI: ${IMAGE_URI}"
+          echo "Docker image latest URI: ${IMAGE_URI_LATEST}"
 
       - name: Build Docker image
         run: |
-          docker build -t "$IMAGE_URI" .
+          docker build \
+            -t "$IMAGE_URI" \
+            -t "$IMAGE_URI_LATEST" \
+            .
 
       - name: Push Docker image to Artifact Registry
         run: |
           docker push "$IMAGE_URI"
+          docker push "$IMAGE_URI_LATEST"
+
+      - name: Validate best candidate model exists
+        run: |
+          echo "Checking best candidate model and metrics..."
+
+          gcloud storage ls "gs://${MODEL_BUCKET}/models/candidate/best/pipeline.pkl"
+          gcloud storage ls "gs://${MODEL_BUCKET}/reports/candidate/best/metrics.json"
+
+          gcloud storage cp \
+            "gs://${MODEL_BUCKET}/reports/candidate/best/metrics.json" \
+            best_metrics.json
+
+          python - <<'PY'
+          import json
+          import os
+
+          with open("best_metrics.json", "r", encoding="utf-8") as f:
+              metrics = json.load(f)
+
+          best_f1 = metrics.get("f1_weighted", "unknown")
+          accuracy = metrics.get("accuracy", "unknown")
+
+          print(f"Best candidate F1: {best_f1}")
+          print(f"Best candidate accuracy: {accuracy}")
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"BEST_F1={best_f1}\n")
+              env.write(f"BEST_ACCURACY={accuracy}\n")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Production Model Promotion\n\n")
+              summary.write(f"- Best candidate F1: `{best_f1}`\n")
+              summary.write(f"- Best candidate accuracy: `{accuracy}`\n")
+          PY
+
+      - name: Promote best candidate model to production
+        run: |
+          echo "Promoting best candidate model to production..."
+
+          PRODUCTION_MODEL_URI="gs://${MODEL_BUCKET}/models/production/latest/pipeline.pkl"
+          PRODUCTION_METRICS_URI="gs://${MODEL_BUCKET}/reports/production/latest/metrics.json"
+
+          VERSIONED_MODEL_URI="gs://${MODEL_BUCKET}/models/production/${GITHUB_SHA}/pipeline.pkl"
+          VERSIONED_METRICS_URI="gs://${MODEL_BUCKET}/reports/production/${GITHUB_SHA}/metrics.json"
+
+          gcloud storage cp \
+            "gs://${MODEL_BUCKET}/models/candidate/best/pipeline.pkl" \
+            "$PRODUCTION_MODEL_URI"
+
+          gcloud storage cp \
+            "gs://${MODEL_BUCKET}/reports/candidate/best/metrics.json" \
+            "$PRODUCTION_METRICS_URI"
+
+          gcloud storage cp \
+            "gs://${MODEL_BUCKET}/models/candidate/best/pipeline.pkl" \
+            "$VERSIONED_MODEL_URI"
+
+          gcloud storage cp \
+            "gs://${MODEL_BUCKET}/reports/candidate/best/metrics.json" \
+            "$VERSIONED_METRICS_URI"
+
+          echo "PRODUCTION_MODEL_URI=${PRODUCTION_MODEL_URI}" >> "$GITHUB_ENV"
+          echo "PRODUCTION_METRICS_URI=${PRODUCTION_METRICS_URI}" >> "$GITHUB_ENV"
+          echo "VERSIONED_MODEL_URI=${VERSIONED_MODEL_URI}" >> "$GITHUB_ENV"
+
+          echo "Production model promoted to: ${PRODUCTION_MODEL_URI}"
+          echo "Versioned production model saved to: ${VERSIONED_MODEL_URI}"
 
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
             --image "$IMAGE_URI" \
             --region "$GCP_REGION" \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars "MODEL_GCS_URI=gs://${MODEL_BUCKET}/models/production/latest/pipeline.pkl,MODEL_VERSION=${GITHUB_SHA}"
+            --set-env-vars "MODEL_GCS_URI=${PRODUCTION_MODEL_URI},MODEL_VERSION=${GITHUB_SHA}" \
+            --quiet
 
-      - name: Run Cloud Run smoke test
-        continue-on-error: true
+      - name: Get Cloud Run service URL
         run: |
           SERVICE_URL=$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --format "value(status.url)")
 
-          echo "Cloud Run URL: $SERVICE_URL"
+          if [ -z "$SERVICE_URL" ]; then
+            echo "Failed to get Cloud Run service URL."
+            exit 1
+          fi
 
-          echo "Testing /health endpoint..."
-          echo "Testing /health endpoint..."
-          curl -i "$SERVICE_URL/health" || true
+          echo "SERVICE_URL=${SERVICE_URL}" >> "$GITHUB_ENV"
+          echo "Cloud Run URL: ${SERVICE_URL}"
+
+      - name: Run Cloud Run smoke test
+        run: |
+          echo "Testing Cloud Run service readiness..."
+
+          HEALTH_STATUS="000"
+
+          for attempt in {1..12}; do
+            echo "Health check attempt ${attempt}/12..."
+
+            HEALTH_STATUS=$(curl -sS -o health_response.json -w "%{http_code}" \
+              "$SERVICE_URL/health" || true)
+
+            echo "Health status: ${HEALTH_STATUS}"
+
+            if [ "$HEALTH_STATUS" = "200" ]; then
+              echo "Health check passed."
+              cat health_response.json
+              break
+            fi
+
+            sleep 10
+          done
+
+          if [ "$HEALTH_STATUS" != "200" ]; then
+            echo "Health check failed after multiple attempts."
+            cat health_response.json || true
+            exit 1
+          fi
 
           echo "Testing /api/predict endpoint..."
-          curl -fsS -X POST "$SERVICE_URL/api/predict" \
+
+          PREDICT_STATUS=$(curl -sS -o predict_response.json -w "%{http_code}" \
+            -X POST "$SERVICE_URL/api/predict" \
             -H "Content-Type: application/json" \
-            -d '{"text":"This is a sample news article for fake news detection."}'
+            -d '{"text":"This is a sample news article for fake news detection."}')
+
+          echo "Predict status: ${PREDICT_STATUS}"
+          cat predict_response.json
+
+          if [ "$PREDICT_STATUS" != "200" ]; then
+            echo "Prediction smoke test failed."
+            exit 1
+          fi
+
+          echo "Prediction smoke test passed."
+
+      - name: Write CD summary
+        if: always()
+        run: |
+          echo "## CD Result" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: \`${{ github.ref_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${SHORT_SHA:-${GITHUB_SHA}}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Docker image: \`${IMAGE_URI:-not generated}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production model URI: \`${PRODUCTION_MODEL_URI:-not promoted}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Versioned model URI: \`${VERSIONED_MODEL_URI:-not created}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Best candidate F1: \`${BEST_F1:-not available}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Best candidate accuracy: \`${BEST_ACCURACY:-not available}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cloud Run service: \`${CLOUD_RUN_SERVICE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cloud Run URL: \`${SERVICE_URL:-not available}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workflow status: \`${{ job.status }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This CD promotes the best candidate model to production, builds and pushes a Docker image to Artifact Registry, deploys the Flask API to Cloud Run, and validates the deployment using smoke tests." >> "$GITHUB_STEP_SUMMARY"
