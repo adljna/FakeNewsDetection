@@ -8,7 +8,6 @@ import joblib
 import numpy as np
 from flask import Flask, jsonify, request, render_template
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 app = Flask(
@@ -32,6 +31,7 @@ def reset_model_cache():
 def preprocess(text):
     text = re.sub(r"[^a-zA-Z\s]", "", str(text))
     return text.lower().strip()
+
 
 def validate_news_text(text):
     text = str(text).strip()
@@ -57,6 +57,7 @@ def validate_news_text(text):
         return "Teks berita terlalu panjang. Maksimal 10000 karakter."
 
     return None
+
 
 def parse_gcs_uri(gcs_uri):
     parsed = urlparse(gcs_uri)
@@ -104,8 +105,7 @@ def load_pickle_or_joblib(model_path):
 def load_model():
     model_gcs_uri = os.getenv("MODEL_GCS_URI")
     model_local_path = os.getenv(
-        "MODEL_LOCAL_PATH",
-        str(BASE_DIR / "model" / "pipeline_v1.pkl")
+        "MODEL_LOCAL_PATH", str(BASE_DIR / "model" / "pipeline_v1.pkl")
     )
 
     if model_gcs_uri:
@@ -178,12 +178,12 @@ def predict_news(news_text):
         prob_fake = get_class_probability(
             model,
             probabilities,
-            target_values={"0", "fake", "fake news", "false", "palsu"}
+            target_values={"0", "fake", "fake news", "false", "palsu"},
         )
         prob_real = get_class_probability(
             model,
             probabilities,
-            target_values={"1", "real", "real news", "true", "asli"}
+            target_values={"1", "real", "real news", "true", "asli"},
         )
 
         if prob_fake is None and len(probabilities) >= 1:
@@ -224,23 +224,29 @@ def health():
     try:
         get_model()
 
-        return jsonify(
-            {
-                "status": "healthy",
-                "model_loaded": True,
-                "model_source": get_model_source(),
-                "model_version": os.getenv("MODEL_VERSION", "unknown"),
-            }
-        ), 200
+        return (
+            jsonify(
+                {
+                    "status": "healthy",
+                    "model_loaded": True,
+                    "model_source": get_model_source(),
+                    "model_version": os.getenv("MODEL_VERSION", "unknown"),
+                }
+            ),
+            200,
+        )
 
     except Exception as error:
-        return jsonify(
-            {
-                "status": "unhealthy",
-                "model_loaded": False,
-                "error": str(error),
-            }
-        ), 503
+        return (
+            jsonify(
+                {
+                    "status": "unhealthy",
+                    "model_loaded": False,
+                    "error": str(error),
+                }
+            ),
+            503,
+        )
 
 
 @app.route("/predict", methods=["POST"])
@@ -272,44 +278,42 @@ def predict_api():
     payload = request.get_json(silent=True)
 
     if payload is None:
-        return jsonify(
-            {
-                "error": "Invalid request. JSON body is required."
-            }
-        ), 400
+        return jsonify({"error": "Invalid request. JSON body is required."}), 400
 
     text = payload.get("text", "")
 
     validation_error = validate_news_text(text)
 
     if validation_error:
-        return jsonify(
-            {
-                "error": validation_error
-            }
-        ), 400
+        return jsonify({"error": validation_error}), 400
 
     try:
         result = predict_news(text)
 
-        return jsonify(
-            {
-                "prediction": result["raw_prediction"],
-                "label": result["label"],
-                "confidence": result["confidence"],
-                "is_fake": result["is_fake"],
-                "model_version": result["model_version"],
-                "model_source": result["model_source"],
-            }
-        ), 200
+        return (
+            jsonify(
+                {
+                    "prediction": result["raw_prediction"],
+                    "label": result["label"],
+                    "confidence": result["confidence"],
+                    "is_fake": result["is_fake"],
+                    "model_version": result["model_version"],
+                    "model_source": result["model_source"],
+                }
+            ),
+            200,
+        )
 
     except Exception as error:
-        return jsonify(
-            {
-                "error": "Prediction failed.",
-                "detail": str(error),
-            }
-        ), 500
+        return (
+            jsonify(
+                {
+                    "error": "Prediction failed.",
+                    "detail": str(error),
+                }
+            ),
+            500,
+        )
 
 
 if __name__ == "__main__":
