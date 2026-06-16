@@ -4,6 +4,7 @@ extend-ignore = E203,W503
 exclude =
     .git,
     __pycache__,
+    .pytest_cache,
     .venv,
     venv,
     env,
@@ -11,6 +12,8 @@ exclude =
     model,
     reports,
     notebook,
+    exploration,
+    mlruns,
     *.ipynb
 per-file-ignores =
     __init__.py:F401

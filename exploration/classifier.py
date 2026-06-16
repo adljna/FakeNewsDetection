@@ -8,14 +8,10 @@ Created on Sun Nov  5 12:58:52 2017
 import sys
 import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import src.DataPrep as DataPrep
 import src.FeatureSelection as FeatureSelection
 import numpy as np
-import pandas as pd
 import pickle
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import Pipeline
 from sklearn.naive_bayes import MultinomialNB
@@ -32,10 +28,16 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
 
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+)
+
 # string to test
 doc_new = ["obama is running for president in 2016"]
 
-# the feature selection has been done in FeatureSelection.py module. here we will create models using those features for prediction
+# the feature selection has been done in
+# FeatureSelection.py module. here we will create models
+# using those features for prediction
 
 # first we will use bag of words techniques
 
@@ -160,11 +162,15 @@ build_confusion_matrix(random_forest)
 # =========================================================================================
 
 
-"""So far we have used bag of words technique to extract the features and passed those featuers into classifiers. We have also seen the
-f1 scores of these classifiers. now lets enhance these features using term frequency weights with various n-grams
+"""So far we have used bag of words
+technique to extract the features and passed
+those featuers into classifiers. We have also seen
+the f1 scores of these classifiers.
+now lets enhance these features using
+term frequency weights with various n-grams
 """
 
-##Now using n-grams
+# Now using n-grams
 # naive-bayes classifier
 nb_pipeline_ngram = Pipeline(
     [("nb_tfidf", FeatureSelection.tfidf_ngram), ("nb_clf", MultinomialNB())]
@@ -269,10 +275,12 @@ print(classification_report(DataPrep.test_news["Label"], predicted_rf_ngram))
 DataPrep.test_news["Label"].shape
 
 """
-Out of all the models fitted, we would take 2 best performing model. we would call them candidate models
-from the confusion matrix, we can see that random forest and logistic regression are best performing 
-in terms of precision and recall (take a look into false positive and true negative counts which appeares
-to be low compared to rest of the models)
+Out of all the models fitted, we would take 2 best performing model.
+we would call them candidate models from the confusion matrix,
+we can see that random forest and logistic regression are
+best performing in terms of precision and recall
+(take a look into false positive and true negative counts
+which appeares to be low compared to rest of the models)
 """
 
 # grid-search parameter optimization
@@ -328,7 +336,8 @@ gs_clf.cv_results_
 # by running above commands we can find the model with best performing parameters
 
 
-# running both random forest and logistic regression models again with best parameter found with GridSearch method
+# running both random forest and logistic regression models
+# again with best parameter found with GridSearch method
 random_forest_final = Pipeline(
     [
         (
@@ -367,24 +376,30 @@ print(metrics.classification_report(DataPrep.test_news["Label"], predicted_LogR_
 
 
 """
-by running both random forest and logistic regression with GridSearch's best parameter estimation, we found that for random 
-forest model with n-gram has better accuracty than with the parameter estimated. The logistic regression model with best parameter 
-has almost similar performance as n-gram model so logistic regression will be out choice of model for prediction.
+by running both random forest and logistic regression
+with GridSearch's best parameter estimation,
+we found that for random forest model with n-gram
+has better accuracty than with the parameter estimated.
+The logistic regression model with best parameter
+has almost similar performance as n-gram model
+so logistic regression will be out choice of model for prediction.
 """
 
 # ====================================================================
 # MODIFIKASI: Menyimpan Model Terbaik Langsung ke Folder Model Flask
 # ====================================================================
-import os
 
-# Tentukan path folder model (disesuaikan agar langsung masuk ke folder model aplikasi Flask)
-# Kodingan ini otomatis menyimpan file ke dalam folder: model/pipeline_v1.pkl
+# Tentukan path folder model (disesuaikan agar
+# langsung masuk ke folder model aplikasi Flask)
+# Kodingan ini otomatis menyimpan file ke
+# dalam folder: model/pipeline_v1.pkl
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "../model")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 model_file_path = os.path.join(OUTPUT_DIR, "pipeline_v1.pkl")
 
-# logR_pipeline_ngram adalah objek Pipeline asli (TF-IDF + Logistic Regression) bawaan script ini
+# logR_pipeline_ngram adalah objek Pipeline asli
+# (TF-IDF + Logistic Regression) bawaan script ini
 pickle.dump(logR_pipeline_ngram, open(model_file_path, "wb"))
 
 print(f"✓ MODEL PIPELINE TERBAIK BERHASIL DICETAK DI: {model_file_path}")
@@ -457,9 +472,11 @@ plot_learing_curve(sgd_pipeline_ngram, "SGD Classifier")
 plot_learing_curve(random_forest_ngram, "RandomForest Classifier")
 
 """
-by plotting the learning cureve for logistic regression, it can be seen that cross-validation score is stagnating throughout and it 
-is unable to learn from data. Also we see that there are high errors that indicates model is simple and we may want to increase the
-model complexity.
+by plotting the learning cureve for logistic regression,
+it can be seen that cross-validation score is stagnating
+throughout and it is unable to learn from data.
+Also we see that there are high errors that indicates
+model is simple and we may want to increase the model complexity.
 """
 
 
@@ -490,9 +507,12 @@ plot_PR_curve(predicted_rf_ngram)
 
 
 """
-Now let's extract the most informative feature from ifidf vectorizer for all fo the classifiers and see of there are any common
-words that we can identify i.e. are these most informative feature acorss the classifiers are same? we will create a function that 
-will extract top 50 features.
+Now let's extract the most informative feature
+from ifidf vectorizer for all fo the classifiers
+and see of there are any common words that we can identify
+i.e. are these most informative feature
+acorss the classifiers are same?
+we will create a function that will extract top 50 features.
 """
 
 
