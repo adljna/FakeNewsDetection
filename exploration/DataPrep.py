@@ -7,12 +7,9 @@ Created on Sat Nov  4 12:00:49 2017
 
 # import os
 import pandas as pd
-import csv
-import numpy as np
 import nltk
 from nltk.stem import SnowballStemmer
 from nltk.stem.porter import PorterStemmer
-from nltk.tokenize import word_tokenize
 import seaborn as sb
 import os
 
@@ -53,7 +50,9 @@ def create_distribution(dataFile):
     return sb.countplot(x="Label", data=dataFile, palette="hls")
 
 
-# by calling below we can see that training, test and valid data seems to be failry evenly distributed between the classes
+# by calling below we can see that training,
+# test and valid data seems to be failry evenly
+# distributed between the classes
 create_distribution(train_news)
 create_distribution(test_news)
 create_distribution(valid_news)
@@ -81,8 +80,8 @@ def data_qualityCheck():
 # data_qualityCheck()
 
 
-# eng_stemmer = SnowballStemmer('english')
-# stopwords = set(nltk.corpus.stopwords.words('english'))
+eng_stemmer = SnowballStemmer('english')
+stopwords = set(nltk.corpus.stopwords.words('english'))
 
 
 # Stemming
@@ -105,13 +104,13 @@ def process_data(data, exclude_stopword=True, stem=True):
 # creating ngrams
 # unigram
 def create_unigram(words):
-    assert type(words) == list
+    assert isinstance(words, list)
     return words
 
 
 # bigram
 def create_bigrams(words):
-    assert type(words) == list
+    assert isinstance(words, list)
     skip = 0
     join_str = " "
     Len = len(words)
@@ -140,7 +139,10 @@ def create_trigrams(words):
             for k1 in range(1, skip+2):
                 for k2 in range(1,skip+2):
                     for i+k1 < Len and i+k1+k2 < Len:
-                        lst.append(join_str.join([words[i], words[i+k1],words[i+k1+k2])])
+                        lst.append(
+                            join_str.join([words[i],
+                            words[i+k1],words[i+k1+k2])]
+                        )
         else:
             #set is as bigram
             lst = create_bigram(words)
@@ -164,17 +166,20 @@ def tokenizer_porter(text):
 
 # show the distribution of labels in the train and test data
 """def create_datafile(filename)
-    #function to slice the dataframe to keep variables necessary to be used for classification
+    #function to slice the dataframe to keep
+    # variables necessary to be used for classification
     return "return df to be used"
 """
 
 """#converting multiclass labels present in our datasets to binary class labels
 for i , row in data_TrainNews.iterrows():
-    if (data_TrainNews.iloc[:,0] == "mostly-true" | data_TrainNews.iloc[:,0] == "half-true" | data_TrainNews.iloc[:,0] == "true"):
+    if (data_TrainNews.iloc[:,0] == "mostly-true"
+    | data_TrainNews.iloc[:,0] == "half-true"
+    | data_TrainNews.iloc[:,0] == "true"):
         data_TrainNews.iloc[:,0] = "true"
     else :
         data_TrainNews.iloc[:,0] = "false"
-        
+
 for i,row in data_TrainNews.iterrows():
     print(row)
 """

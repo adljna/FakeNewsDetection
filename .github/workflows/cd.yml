@@ -1,9 +1,10 @@
 name: CD - Production Deployment
 
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows: ["CI - Development Validation"]
+    types: [completed]
+    branches: [master]
 
   workflow_dispatch:
 
@@ -20,6 +21,7 @@ env:
   CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
   AR_REPOSITORY: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
   IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
+  MIN_F1_SCORE: 0.60
 
 concurrency:
   group: production-deployment
@@ -31,7 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    if: github.ref_name == 'master'
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository
@@ -106,28 +110,7 @@ jobs:
             "gs://${MODEL_BUCKET}/reports/candidate/best/metrics.json" \
             best_metrics.json
 
-          python - <<'PY'
-          import json
-          import os
-
-          with open("best_metrics.json", "r", encoding="utf-8") as f:
-              metrics = json.load(f)
-
-          best_f1 = metrics.get("f1_weighted", "unknown")
-          accuracy = metrics.get("accuracy", "unknown")
-
-          print(f"Best candidate F1: {best_f1}")
-          print(f"Best candidate accuracy: {accuracy}")
-
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
-              env.write(f"BEST_F1={best_f1}\n")
-              env.write(f"BEST_ACCURACY={accuracy}\n")
-
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-              summary.write("## Production Model Promotion\n\n")
-              summary.write(f"- Best candidate F1: `{best_f1}`\n")
-              summary.write(f"- Best candidate accuracy: `{accuracy}`\n")
-          PY
+          python scripts/validate_best_model.py
 
       - name: Promote best candidate model to production
         run: |

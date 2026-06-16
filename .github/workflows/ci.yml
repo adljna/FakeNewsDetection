@@ -71,11 +71,15 @@ jobs:
       - name: Install quality tools
         run: |
           python -m pip install --upgrade pip
-          pip install black
+          pip install black flake8
 
       - name: Run Black format check
         run: |
           black --check src tests
+
+      - name: Run Flake8 lint check
+        run: |
+          flake8 src tests
 
   unit-test:
     name: Run API Unit Tests
@@ -196,7 +200,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-train.txt
 
       - name: Prepare directories
         run: |
@@ -221,93 +225,12 @@ jobs:
 
       - name: Validate model metric gate
         run: |
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          metrics_path = "reports/metrics.json"
-          min_f1 = float(os.getenv("MIN_F1_SCORE"))
-
-          with open(metrics_path, "r", encoding="utf-8") as f:
-              metrics = json.load(f)
-
-          f1 = float(metrics.get("f1_weighted", 0))
-
-          print(f"F1 score: {f1:.4f}")
-          print(f"Minimum required F1 score: {min_f1:.4f}")
-
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-              summary.write("## Model Metric Gate\n\n")
-              summary.write(f"- F1 score: `{f1:.4f}`\n")
-              summary.write(f"- Minimum required F1 score: `{min_f1:.4f}`\n")
-
-          if f1 < min_f1:
-              print("Model failed the metric gate.")
-              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-                  summary.write("- Status: Failed\n")
-              sys.exit(1)
-
-          print("Model passed the metric gate.")
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-              summary.write("- Status: Passed\n")
-          PY
+          python scripts/validate_model.py
 
       - name: Compare with current best candidate model
         id: compare
         run: |
-          python - <<'PY'
-          import json
-          import os
-          import subprocess
-
-          bucket = os.environ["MODEL_BUCKET"]
-          current_metrics_path = "current_metrics.json"
-          best_metrics_uri = f"gs://{bucket}/reports/candidate/best/metrics.json"
-
-          current_f1 = 0.0
-          previous_best_found = False
-
-          result = subprocess.run(
-              ["gcloud", "storage", "cp", best_metrics_uri, current_metrics_path],
-              capture_output=True,
-              text=True,
-          )
-
-          if result.returncode == 0:
-              previous_best_found = True
-              with open(current_metrics_path, "r", encoding="utf-8") as f:
-                  current_f1 = float(json.load(f).get("f1_weighted", 0))
-          else:
-              print("No previous best candidate model found.")
-              print("This model can become the first best candidate if it passed the metric gate.")
-
-          with open("reports/metrics.json", "r", encoding="utf-8") as f:
-              new_f1 = float(json.load(f).get("f1_weighted", 0))
-
-          is_best = new_f1 > current_f1
-
-          print(f"Previous best found: {previous_best_found}")
-          print(f"Current best F1: {current_f1:.4f}")
-          print(f"New model F1: {new_f1:.4f}")
-
-          if is_best:
-              print("New model is better. It will be promoted to candidate/best.")
-          else:
-              print("New model is not better. Current best candidate will be kept.")
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-              out.write(f"is_best={'true' if is_best else 'false'}\n")
-              out.write(f"current_f1={current_f1:.4f}\n")
-              out.write(f"new_f1={new_f1:.4f}\n")
-
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-              summary.write("\n## Candidate Model Comparison\n\n")
-              summary.write(f"- Previous best found: `{previous_best_found}`\n")
-              summary.write(f"- Current best F1: `{current_f1:.4f}`\n")
-              summary.write(f"- New model F1: `{new_f1:.4f}`\n")
-              summary.write(f"- Promoted to candidate/best: `{'true' if is_best else 'false'}`\n")
-          PY
+          python scripts/compare_model.py
 
       - name: Upload versioned candidate model
         run: |
@@ -345,6 +268,14 @@ jobs:
           name: ci-training-reports
           path: reports/
           retention-days: 7
+
+      - name: Upload MLflow experiment runs as GitHub artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-mlflow-runs
+          path: mlruns/
+          retention-days: 30
           
   ci-summary:
       name: Generate CI Summary
