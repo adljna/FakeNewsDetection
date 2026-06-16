@@ -4,7 +4,6 @@ import numpy as np
 import joblib
 
 import src.api as api
-from src.api import app
 
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
