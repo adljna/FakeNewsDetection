@@ -7,3 +7,13 @@ __pycache__/
 .pytest_cache/
 
 reports/
+
+# Data files — versi via DVC atau GCS, bukan Git
+data/*.csv
+liar_dataset/
+
+# Model artifacts — versi via GCS, bukan Git
+model/*.pkl
+
+# MLflow experiment tracking (local file store)
+mlruns/

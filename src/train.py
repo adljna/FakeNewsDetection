@@ -1,14 +1,18 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from datetime import datetime, timezone
 
 import joblib
+import mlflow
+import mlflow.sklearn
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import FunctionTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -18,6 +22,18 @@ from sklearn.metrics import (
     f1_score,
     classification_report,
 )
+
+TFIDF_MAX_FEATURES = 5000
+TFIDF_NGRAM_RANGE = (1, 2)
+
+
+def preprocess(text):
+    text = re.sub(r"[^a-zA-Z\s]", "", str(text))
+    return text.lower().strip()
+
+
+def preprocess_batch(X):
+    return [preprocess(text) for text in X]
 
 
 # Mengatur input-input wajib dari terminal saat menjalankan script.
@@ -109,13 +125,14 @@ def validate_dataset(df, text_col, label_col):
 def build_pipeline():
     return Pipeline(
         steps=[
+            ("preprocessor", FunctionTransformer(preprocess_batch)),
             (
                 "tfidf",
                 TfidfVectorizer(
                     lowercase=True,
                     stop_words="english",
-                    max_features=5000,
-                    ngram_range=(1, 2),
+                    max_features=TFIDF_MAX_FEATURES,
+                    ngram_range=TFIDF_NGRAM_RANGE,
                 ),
             ),
             (
@@ -206,12 +223,49 @@ def main():
         "classification_report": report,
     }
 
-    print("Saving model...")
-    joblib.dump(model, args.model_out)
+    mlflow.set_experiment("fake-news-detection")
 
-    print("Saving metrics...")
-    with open(args.metrics_out, "w", encoding="utf-8") as f:
-        json.dump(metrics, f, indent=4, ensure_ascii=False)
+    with mlflow.start_run(run_name=model_version):
+        mlflow.log_params(
+            {
+                "text_col": args.text_col,
+                "label_col": args.label_col,
+                "test_size": args.test_size,
+                "random_state": args.random_state,
+                "tfidf_max_features": TFIDF_MAX_FEATURES,
+                "tfidf_ngram_range": str(TFIDF_NGRAM_RANGE),
+                "classifier": "LogisticRegression",
+                "total_rows": int(len(df)),
+                "train_rows": int(len(X_train)),
+            }
+        )
+
+        mlflow.log_metrics(
+            {
+                "accuracy": round(float(accuracy), 4),
+                "precision_weighted": round(float(precision), 4),
+                "recall_weighted": round(float(recall), 4),
+                "f1_weighted": round(float(f1), 4),
+            }
+        )
+
+        mlflow.set_tags(
+            {
+                "model_version": model_version,
+                "dataset_path": str(data_path),
+            }
+        )
+
+        mlflow.sklearn.log_model(model, "model")
+
+        print("Saving model...")
+        joblib.dump(model, args.model_out)
+
+        print("Saving metrics...")
+        with open(args.metrics_out, "w", encoding="utf-8") as f:
+            json.dump(metrics, f, indent=4, ensure_ascii=False)
+
+        mlflow.log_artifact(args.metrics_out)
 
     print("Training completed successfully.")
     print(f"Model saved to: {args.model_out}")

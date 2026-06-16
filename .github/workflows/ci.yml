@@ -71,11 +71,15 @@ jobs:
       - name: Install quality tools
         run: |
           python -m pip install --upgrade pip
-          pip install black
+          pip install black flake8
 
       - name: Run Black format check
         run: |
           black --check src tests
+
+      - name: Run Flake8 lint check
+        run: |
+          flake8 src tests
 
   unit-test:
     name: Run API Unit Tests
@@ -196,7 +200,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-train.txt
 
       - name: Prepare directories
         run: |
@@ -221,17 +225,12 @@ jobs:
 
       - name: Validate model metric gate
         run: |
-          python scripts/validate_metric.py \
-            --metrics reports/metrics.json \
-            --min-f1 $MIN_F1_SCORE
+          python scripts/validate_model.py
 
       - name: Compare with current best candidate model
         id: compare
         run: |
-          python scripts/compare_model.py \
-            --new-metrics reports/metrics.json \
-            --model-bucket "$MODEL_BUCKET" \
-            --min-f1 $MIN_F1_SCORE
+          python scripts/compare_model.py
 
       - name: Upload versioned candidate model
         run: |
@@ -269,6 +268,14 @@ jobs:
           name: ci-training-reports
           path: reports/
           retention-days: 7
+
+      - name: Upload MLflow experiment runs as GitHub artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-mlflow-runs
+          path: mlruns/
+          retention-days: 30
           
   ci-summary:
       name: Generate CI Summary

@@ -163,16 +163,15 @@ def get_class_probability(model, probabilities, target_values):
 
 def predict_news(news_text):
     model = get_model()
-    clean_text = preprocess(news_text)
 
-    prediction = model.predict([clean_text])[0]
+    prediction = model.predict([news_text])[0]
 
     confidence = None
     prob_fake = None
     prob_real = None
 
     if hasattr(model, "predict_proba"):
-        probabilities = model.predict_proba([clean_text])[0]
+        probabilities = model.predict_proba([news_text])[0]
         confidence = float(np.max(probabilities)) * 100
 
         prob_fake = get_class_probability(

@@ -53,3 +53,7 @@ def main():
             summary.write(f"- Current best F1: `{current_f1:.4f}`\n")
             summary.write(f"- New model F1: `{new_f1:.4f}`\n")
             summary.write(f"- Promoted to candidate/best: `{'true' if is_best else 'false'}`\n")
+
+
+if __name__ == "__main__":
+    main()

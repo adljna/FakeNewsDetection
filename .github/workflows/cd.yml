@@ -1,9 +1,10 @@
 name: CD - Production Deployment
 
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows: ["CI - Development Validation"]
+    types: [completed]
+    branches: [master]
 
   workflow_dispatch:
 
@@ -20,6 +21,7 @@ env:
   CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
   AR_REPOSITORY: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
   IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
+  MIN_F1_SCORE: 0.60
 
 concurrency:
   group: production-deployment
@@ -31,7 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    if: github.ref_name == 'master'
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository
@@ -106,9 +110,7 @@ jobs:
             "gs://${MODEL_BUCKET}/reports/candidate/best/metrics.json" \
             best_metrics.json
 
-          python scripts/validate_best_model.py \
-            --metrics best_metrics.json \
-            --min-f1 $MIN_F1_SCORE
+          python scripts/validate_best_model.py
 
       - name: Promote best candidate model to production
         run: |
