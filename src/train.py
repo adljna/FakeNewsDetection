@@ -23,7 +23,8 @@ from sklearn.metrics import (
 # Mengatur input-input wajib dari terminal saat menjalankan script.
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Train fake news detection model using TF-IDF and Logistic Regression."
+        description="Train fake news detection model "
+        "using TF-IDF and Logistic Regression."
     )
 
     parser.add_argument(
@@ -81,7 +82,8 @@ def validate_dataset(df, text_col, label_col):
 
     if label_col not in df.columns:
         raise ValueError(
-            f"Label column '{label_col}' not found. Available columns: {list(df.columns)}"
+            f"Label column '{label_col}' not found. "
+            f"Available columns: {list(df.columns)}"
         )
 
     df = df[[text_col, label_col]].copy()

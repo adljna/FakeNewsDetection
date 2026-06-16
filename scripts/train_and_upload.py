@@ -22,7 +22,11 @@ from sklearn.metrics import (
 )
 
 
-def get_env(name: str, default: Optional[str] = None, required: bool = False) -> Optional[str]:
+def get_env(
+        name: str,
+        default: Optional[str] = None,
+        required: bool = False
+) -> Optional[str]:
     value = os.getenv(name, default)
 
     if required and not value:
@@ -40,7 +44,9 @@ def parse_gcs_uri(gcs_uri: str):
     bucket-name, path/file.csv
     """
     if not gcs_uri.startswith("gs://"):
-        raise ValueError(f"GCS URI harus diawali dengan gs://, diterima: {gcs_uri}")
+        raise ValueError(
+            f"GCS URI harus diawali dengan gs://, diterima: {gcs_uri}"
+        )
 
     parsed = urlparse(gcs_uri)
     bucket_name = parsed.netloc
@@ -118,7 +124,8 @@ def pick_column(
     raise ValueError(
         f"Kolom untuk {column_description} tidak ditemukan.\n"
         f"Kolom yang tersedia: {list(df.columns)}\n"
-        f"Solusi: set TEXT_COL dan LABEL_COL di GitHub Variables sesuai nama kolom dataset."
+        "Solusi: set TEXT_COL dan LABEL_COL di GitHub "
+        "Variables sesuai nama kolom dataset."
     )
 
 
@@ -212,10 +219,14 @@ def main():
     print(df[label_col].value_counts())
 
     if len(df) < 10:
-        raise ValueError("Dataset terlalu sedikit untuk training. Minimal butuh lebih banyak data.")
+        raise ValueError(
+            "Dataset terlalu sedikit untuk training. "
+            "Minimal butuh lebih banyak data.")
 
     if df[label_col].nunique() < 2:
-        raise ValueError("Label hanya punya 1 kelas. Model klasifikasi butuh minimal 2 kelas.")
+        raise ValueError(
+            "Label hanya punya 1 kelas. "
+            "Model klasifikasi butuh minimal 2 kelas.")
 
     X = df[text_col]
     y = df[label_col]
@@ -311,8 +322,14 @@ def main():
 
     print("Model passed quality gate.")
 
-    model_gcs_uri = f"gs://{model_bucket}/{model_prefix}/{model_version}/final_model.sav"
-    metrics_gcs_uri = f"gs://{model_bucket}/{model_prefix}/{model_version}/metrics.json"
+    model_gcs_uri = (
+        f"gs://{model_bucket}/{model_prefix}/"
+        f"{model_version}/final_model.sav"
+    )
+    metrics_gcs_uri = (
+        f"gs://{model_bucket}/{model_prefix}/"
+        f"{model_version}/metrics.json"
+    )
 
     upload_to_gcs(str(local_model_path), model_gcs_uri)
     upload_to_gcs(str(local_metrics_path), metrics_gcs_uri)

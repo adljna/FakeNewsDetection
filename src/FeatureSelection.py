@@ -4,26 +4,30 @@ Created on Sat Nov  4 14:13:38 2017
 
 @author: NishitP
 
-Note: before we can train an algorithm to classify fake news labels, we need to extract features from it. It means reducing the mass
-of unstructured data into some uniform set of attributes that an algorithm can understand. For fake news detection, it could be
-word counts (bag of words).
+Note: before we can train an algorithm to classify
+fake news labels, we need to extract features from it.
+It means reducing the mass of unstructured data
+into some uniform set of attributes that
+an algorithm can understand. For fake news detection,
+it could be word counts (bag of words).
 """
 
 import sys
 import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import src.DataPrep as DataPrep
-import pandas as pd
-import numpy as np
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfTransformer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.pipeline import Pipeline
 import nltk
 import nltk.corpus
-from nltk.tokenize import word_tokenize
-from gensim.models.word2vec import Word2Vec
+import numpy as np
+import src.DataPrep as DataPrep
+from sklearn.feature_extraction.text import (
+    CountVectorizer,
+    TfidfTransformer,
+    TfidfVectorizer,
+)
+
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+)
 
 # we will start with simple bag of words technique
 # creating feature vector - document term matrix
