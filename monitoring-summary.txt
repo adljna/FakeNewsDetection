@@ -1,0 +1,81 @@
+================================================================
+MONITORING SUMMARY - Fake News Detection Project
+================================================================
+
+Project ini punya 3 lapisan monitoring:
+
+----------------------------------------------------------------
+1. MLflow -- Monitoring Eksperimen ML
+----------------------------------------------------------------
+File: src/train.py (baris 226-268)
+
+Setiap kali training, MLflow otomatis mencatat:
+- Params  : text_col, test_size, tfidf_max_features, dll.
+- Metrics : accuracy, precision, recall, F1-score
+- Artifacts: model .pkl dan metrics.json
+
+Cara melihat hasil:
+  $ mlflow ui
+  Buka browser: http://localhost:5000
+
+Semua run tersimpan di folder: mlruns/
+
+Catatan: Di CI, MLflow runs juga di-upload sebagai GitHub Artifact
+         (ci-mlflow-runs) dengan retention 30 hari.
+
+----------------------------------------------------------------
+2. Health Endpoint -- Monitoring Runtime API
+----------------------------------------------------------------
+File: src/api.py (baris 222-248)
+
+Endpoint: GET /health
+
+Contoh request:
+  curl https://<cloud-run-url>/health
+
+Response saat sehat:
+  {
+    "status": "healthy",
+    "model_loaded": true,
+    "model_source": "gs://...",
+    "model_version": "abc1234"
+  }
+
+Endpoint ini juga di-hit otomatis di setiap deployment CD
+sebagai smoke test (cd.yml baris 174-218).
+
+----------------------------------------------------------------
+3. GitHub Actions -- Monitoring CI/CD Pipeline
+----------------------------------------------------------------
+File: .github/workflows/ci.yml dan cd.yml
+
+Yang dimonitor:
+  - Code quality (Black, Flake8)         -> Tab Actions di GitHub
+  - Unit test + coverage >= 80%          -> Tab Actions di GitHub
+  - Dependency security (pip-audit)      -> Artifact: ci-security-audit-report
+  - F1 score >= 0.60 (metric gate)       -> Log step "Validate model metric gate"
+  - Perbandingan model baru vs. best     -> Log step "Compare with current best"
+  - Summary deployment                   -> GitHub Step Summary tiap run CD
+
+----------------------------------------------------------------
+CARA AKSES MONITORING SEKARANG
+----------------------------------------------------------------
+
+Tool                  | Cara Akses
+----------------------|------------------------------------------
+MLflow (lokal)        | jalankan "mlflow ui" -> localhost:5000
+GitHub CI/CD logs     | GitHub repo -> tab Actions
+Artifact laporan      | Actions -> pilih run -> bagian Artifacts
+Health API (prod)     | GET <cloud-run-url>/health
+
+----------------------------------------------------------------
+CATATAN
+----------------------------------------------------------------
+Yang belum ada di project ini: alerting otomatis (misalnya
+notifikasi email/Slack kalau model drift atau deployment gagal).
+
+Bisa ditambahkan nanti melalui:
+- Cloud Run monitoring di GCP Console
+- Integrasi Grafana (jika diperlukan)
+
+================================================================

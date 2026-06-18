@@ -1,6 +1,8 @@
+import json
 import os
 import re
 import pickle
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -18,6 +20,11 @@ app = Flask(
 
 _model = None
 _model_source = None
+
+
+def log_event(severity, event, **fields):
+    """Emit structured JSON log to stdout — Cloud Run forwards this to Cloud Logging."""
+    print(json.dumps({"severity": severity, "event": event, **fields}), flush=True)
 
 
 def reset_model_cache():
@@ -287,7 +294,20 @@ def predict_api():
         return jsonify({"error": validation_error}), 400
 
     try:
+        start = time.time()
         result = predict_news(text)
+        latency_ms = round((time.time() - start) * 1000, 2)
+
+        log_event(
+            "INFO",
+            "prediction",
+            is_fake=result["is_fake"],
+            confidence=float(result["confidence"]) if result["confidence"] else None,
+            text_length=len(text),
+            word_count=len(text.split()),
+            model_version=result["model_version"],
+            latency_ms=latency_ms,
+        )
 
         return (
             jsonify(
@@ -304,6 +324,8 @@ def predict_api():
         )
 
     except Exception as error:
+        log_event("ERROR", "prediction_error", error=str(error))
+
         return (
             jsonify(
                 {
