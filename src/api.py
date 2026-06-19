@@ -318,6 +318,7 @@ def predict_api():
                     "is_fake": result["is_fake"],
                     "model_version": result["model_version"],
                     "model_source": result["model_source"],
+                    "latency_ms": latency_ms,
                 }
             ),
             200,
