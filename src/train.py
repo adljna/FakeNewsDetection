@@ -23,7 +23,7 @@ from sklearn.metrics import (
     classification_report,
 )
 
-TFIDF_MAX_FEATURES = 6000
+TFIDF_MAX_FEATURES = 5000
 TFIDF_NGRAM_RANGE = (1, 2)
 
 
