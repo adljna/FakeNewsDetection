@@ -257,3 +257,69 @@ def test_health_unhealthy_when_model_missing(client, monkeypatch):
     assert data["model_loaded"] is False
 
     api.reset_model_cache()
+
+
+def test_home_page_returns_200(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+
+def test_predict_web_invalid_text(client):
+    response = client.post("/predict", data={"news": "short"})
+
+    assert response.status_code == 200
+    assert b"Teks berita terlalu pendek" in response.data
+
+
+def test_predict_web_valid_text(client):
+    response = client.post(
+        "/predict",
+        data={
+            "news": "Government confirms official policy update on economic affairs."
+        },
+    )
+
+    assert response.status_code == 200
+
+
+def test_get_class_probability_no_match():
+    class ModelWithUnknownClasses:
+        classes_ = ["positive", "negative"]
+
+    probabilities = np.array([0.6, 0.4])
+
+    result = api.get_class_probability(
+        ModelWithUnknownClasses(),
+        probabilities,
+        target_values={"fake"},
+    )
+
+    assert result is None
+
+
+def test_predict_api_returns_fake_news(client, monkeypatch):
+    class FakeModel:
+        classes_ = ["FAKE", "REAL"]
+
+        def predict(self, texts):
+            return ["FAKE"]
+
+        def predict_proba(self, texts):
+            return np.array([[0.85, 0.15]])
+
+    monkeypatch.setattr(api, "_model", FakeModel())
+    monkeypatch.setattr(api, "_model_source", "test-fake-model")
+
+    response = client.post(
+        "/api/predict",
+        json={"text": "Shocking secret celebrity claim without proof spreading lies."},
+    )
+
+    assert response.status_code == 200
+
+    body = response.get_json()
+    assert body["prediction"] == "FAKE"
+    assert body["is_fake"] is True
+    assert body["label"] == "FAKE NEWS (Berita Palsu)"
+    assert "latency_ms" in body

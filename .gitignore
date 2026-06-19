@@ -17,3 +17,4 @@ model/*.pkl
 
 # MLflow experiment tracking (local file store)
 mlruns/
+penjelasan_train.txt
